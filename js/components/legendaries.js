@@ -1,7 +1,7 @@
 import { GW2Api } from '../api.js';
 
 export const Legendaries = {
-    activeSubTab: 'seasons', // 'seasons' or 'obsidian'
+    activeSubTab: 'seasons', // 'seasons', 'obsidian', 'orrax'
     obsidianPiecesCount: 6,  // Default to full set (6) or 1 piece
     showCraftGuide: false,   // Craft guide visibility
 
@@ -14,6 +14,9 @@ export const Legendaries = {
                 </button>
                 <button class="tab-btn ${this.activeSubTab === 'obsidian' ? 'active' : ''}" id="btn-tab-obsidian">
                     <i class="fa-solid fa-gem"></i> Armure d'Obsidienne (SotO)
+                </button>
+                <button class="tab-btn ${this.activeSubTab === 'orrax' ? 'active' : ''}" id="btn-tab-orrax">
+                    <i class="fa-solid fa-suitcase"></i> Dos de Janthir (Orrax)
                 </button>
             </div>
             <div id="legendary-content-pane">
@@ -33,6 +36,10 @@ export const Legendaries = {
             this.activeSubTab = 'obsidian';
             this.renderContent();
         });
+        document.getElementById('btn-tab-orrax').addEventListener('click', () => {
+            this.activeSubTab = 'orrax';
+            this.renderContent();
+        });
 
         await this.renderContent();
     },
@@ -44,13 +51,17 @@ export const Legendaries = {
         // Visual toggle active button classes
         const btnSeasons = document.getElementById('btn-tab-seasons');
         const btnObsidian = document.getElementById('btn-tab-obsidian');
+        const btnOrrax = document.getElementById('btn-tab-orrax');
         if (btnSeasons) btnSeasons.className = `tab-btn ${this.activeSubTab === 'seasons' ? 'active' : ''}`;
         if (btnObsidian) btnObsidian.className = `tab-btn ${this.activeSubTab === 'obsidian' ? 'active' : ''}`;
+        if (btnOrrax) btnOrrax.className = `tab-btn ${this.activeSubTab === 'orrax' ? 'active' : ''}`;
 
         if (this.activeSubTab === 'seasons') {
             await this.renderSeasons(pane);
-        } else {
+        } else if (this.activeSubTab === 'obsidian') {
             await this.renderObsidian(pane);
+        } else if (this.activeSubTab === 'orrax') {
+            await this.renderOrrax(pane);
         }
     },
 
@@ -847,6 +858,422 @@ export const Legendaries = {
                         
                         // Instantly update overall progress bar in the DOM
                         this.updateOverallProgressBar(characters, bank, materials, wallet);
+                    });
+                }
+            });
+
+        } catch (error) {
+            pane.innerHTML = `<p class="text-danger">Erreur : ${error.message}</p>`;
+        }
+    },
+
+    getOrraxChecklist() {
+        const stored = localStorage.getItem('gw2_orrax_checklist');
+        const defaults = {
+            story: false,
+            research: false
+        };
+        if (!stored) return defaults;
+        try {
+            return { ...defaults, ...JSON.parse(stored) };
+        } catch (e) {
+            return defaults;
+        }
+    },
+
+    saveOrraxChecklist(checklist) {
+        localStorage.setItem('gw2_orrax_checklist', JSON.stringify(checklist));
+    },
+
+    async renderOrrax(pane) {
+        try {
+            pane.innerHTML = `
+                <div class="loader-container">
+                    <div class="spinner"></div>
+                    <p>Scrutage de votre banque, de vos matériaux et de vos personnages...</p>
+                </div>
+            `;
+
+            let wallet = [];
+            let bank = [];
+            let materials = [];
+            let characters = [];
+            let currencies = [];
+
+            try {
+                const results = await Promise.allSettled([
+                    GW2Api.getWallet(),
+                    GW2Api.getBank(),
+                    GW2Api.fetchWithCache('/account/materials', 'account_materials', 3 * 60 * 1000, true),
+                    GW2Api.getCharacters(),
+                    GW2Api.getCurrencies()
+                ]);
+                
+                wallet = results[0].status === 'fulfilled' ? results[0].value || [] : [];
+                bank = results[1].status === 'fulfilled' ? results[1].value || [] : [];
+                materials = results[2].status === 'fulfilled' ? results[2].value || [] : [];
+                characters = results[3].status === 'fulfilled' ? results[3].value || [] : [];
+                currencies = results[4].status === 'fulfilled' ? results[4].value || [] : [];
+            } catch (e) {
+                console.error("Error loading orrax inputs", e);
+            }
+
+            const itemIds = [
+                104857, 104690, 104777, 96137, 102367, 104704, // Legendary, Precursor, Binding, Tribute, Salmon, Askur
+                104962, 104763, 104699, 104846, 19631, 75299, 104791, 104872, 104965, 104932, 104839, 104717, 104844,
+                103351, 79418, 100930, 19976, 104229, 105004, 104282, 104855, 102569, 103316
+            ];
+            const itemDetails = await GW2Api.getItemDetails(itemIds);
+
+            // Helpers
+            const getTooltipAttr = (item) => {
+                if (!item) return '';
+                const name = item.name || '';
+                let text = name;
+                if (item.rarity) {
+                    text += `\n[${item.rarity}]`;
+                }
+                if (item.level) {
+                    text += `\nNiveau requis: ${item.level}`;
+                }
+                if (item.description) {
+                    const cleanDesc = item.description.replace(/<[^>]*>/g, '').trim();
+                    text += `\n\n"${cleanDesc}"`;
+                }
+                return text.replace(/"/g, '&quot;');
+            };
+
+            const count = (id) => this.countTotalItem(id, bank, materials, characters);
+
+            // Checking ownerships
+            const orraxLegendaryCount = count(104857);
+            const orraxPrecursorCount = count(104690);
+            const bindingCount = count(104777);
+            const tributeCount = count(96137);
+            const salmonCount = count(102367);
+            const askurCount = count(104704);
+            const mistburnedIslesGiftCount = count(104962);
+            const mursaatRuinsGiftCount = count(104763);
+            const janthirWanderlustGiftCount = count(104699);
+            const shadowsGiftCount = count(104846);
+            const titanUnderstandingGiftCount = count(104791);
+            const feastGiftCount = count(104872);
+            const appetizerGiftCount = count(104965);
+            const entreeGiftCount = count(104932);
+            const sideCourseGiftCount = count(104839);
+            const dessertGiftCount = count(104717);
+            const shadowFruitCount = count(104844);
+            const mursaatRunestoneCount = count(103351);
+            const mysticRunestoneCount = count(79418);
+            const amalgamatedRiftEssenceCount = count(100930);
+            const mysticCloverCount = count(19976);
+            const liquidObsidianCount = count(104229);
+            const mistsGateResidueCount = count(105004);
+            const shardMistburnedCount = count(104282);
+            const shardBavaCount = count(104855);
+
+            const ursusObligeCount = wallet.find(c => c.id === 76)?.value || 0;
+
+            // Flags
+            const legendaryOwned = orraxLegendaryCount > 0;
+            const precursorOwned = orraxPrecursorCount > 0 || legendaryOwned;
+            const hasBinding = bindingCount > 0 || precursorOwned;
+            const hasTribute = tributeCount > 0 || precursorOwned;
+            const hasSalmon = salmonCount > 0 || precursorOwned;
+            const hasAskur = askurCount > 0 || precursorOwned;
+
+            const hasMistburnedIslesGift = mistburnedIslesGiftCount > 0 || legendaryOwned;
+            const hasMursaatRuinsGift = mursaatRuinsGiftCount > 0 || hasMistburnedIslesGift;
+            const hasJanthirWanderlustGift = janthirWanderlustGiftCount > 0 || hasMistburnedIslesGift;
+            const hasShadowsGift = shadowsGiftCount > 0 || legendaryOwned;
+            const hasTitanUnderstandingGift = titanUnderstandingGiftCount > 0 || hasShadowsGift;
+            const hasFeastGift = feastGiftCount > 0 || legendaryOwned;
+
+            const hasAppetizer = appetizerGiftCount > 0 || hasFeastGift;
+            const hasEntree = entreeGiftCount > 0 || hasFeastGift;
+            const hasSideCourse = sideCourseGiftCount > 0 || hasFeastGift;
+            const hasDessert = dessertGiftCount > 0 || hasFeastGift;
+
+            // Derived counts (incorporating crafted gifts)
+            const currentClover = mysticCloverCount + (hasTribute ? 38 : 0) + (hasSideCourse ? 30 : 0);
+            const currentMursaatRunestone = mursaatRunestoneCount + (hasMistburnedIslesGift ? 250 : 0);
+            const currentMysticRunestone = mysticRunestoneCount + (hasMistburnedIslesGift ? 250 : 0);
+            const currentShadowFruit = shadowFruitCount + (hasAppetizer ? 5 : 0) + (hasEntree ? 5 : 0) + (hasSideCourse ? 5 : 0) + (hasDessert ? 5 : 0);
+            const currentAmalgamated = amalgamatedRiftEssenceCount + (hasTitanUnderstandingGift ? 25 : 0) + (hasDessert ? 2 : 0);
+            const currentLiquidObsidian = liquidObsidianCount + (hasMursaatRuinsGift ? 100 : 0);
+            const currentMistsGateResidue = mistsGateResidueCount + (hasMursaatRuinsGift ? 50 : 0);
+            const currentShardMistburned = shardMistburnedCount + (hasMursaatRuinsGift ? 100 : 0);
+            const currentShardBava = shardBavaCount + (hasMursaatRuinsGift ? 100 : 0);
+            const currentUrsusOblige = ursusObligeCount + (hasTitanUnderstandingGift ? 1250 : 0);
+
+            // Progress Bar Math
+            let totalSteps = 0;
+            let completedSteps = 0;
+
+            const apiSteps = [
+                { actual: Math.min(68, currentClover), req: 68 },
+                { actual: Math.min(250, currentMursaatRunestone), req: 250 },
+                { actual: Math.min(250, currentMysticRunestone), req: 250 },
+                { actual: Math.min(20, currentShadowFruit), req: 20 },
+                { actual: Math.min(27, currentAmalgamated), req: 27 },
+                { actual: Math.min(100, currentLiquidObsidian), req: 100 },
+                { actual: Math.min(50, currentMistsGateResidue), req: 50 },
+                { actual: Math.min(100, currentShardMistburned), req: 100 },
+                { actual: Math.min(100, currentShardBava), req: 100 },
+                { actual: Math.min(1250, currentUrsusOblige), req: 1250 },
+                { actual: hasBinding ? 1 : 0, req: 1 },
+                { actual: hasSalmon ? 1 : 0, req: 1 },
+                { actual: hasAskur ? 1 : 0, req: 1 },
+                { actual: precursorOwned ? 1 : 0, req: 1 },
+                { actual: (hasJanthirWanderlustGift || count(102929) > 0) ? 1 : 0, req: 1 },
+                { actual: (hasJanthirWanderlustGift || count(102958) > 0) ? 1 : 0, req: 1 },
+                { actual: (hasJanthirWanderlustGift || count(104313) > 0) ? 1 : 0, req: 1 },
+                { actual: (hasJanthirWanderlustGift || count(104896) > 0) ? 1 : 0, req: 1 },
+                { actual: hasShadowsGift ? 1 : 0, req: 1 },
+                { actual: hasFeastGift ? 1 : 0, req: 1 },
+                { actual: hasMistburnedIslesGift ? 1 : 0, req: 1 },
+                { actual: hasTribute ? 1 : 0, req: 1 }
+            ];
+
+            apiSteps.forEach(s => {
+                totalSteps += s.req * 100;
+                completedSteps += s.actual * 100;
+            });
+
+            const orraxChecklist = this.getOrraxChecklist();
+            const manualSteps = [
+                orraxChecklist.story,
+                orraxChecklist.research
+            ];
+
+            manualSteps.forEach(val => {
+                totalSteps += 100;
+                if (val) completedSteps += 100;
+            });
+
+            const overallPercent = Math.min(100, Math.round((completedSteps / totalSteps) * 100)) || 0;
+
+            // Rarity color helper
+            const getRarityColor = (rarity) => {
+                switch (rarity) {
+                    case 'Junk': return '#aaaaaa';
+                    case 'Basic': return '#ffffff';
+                    case 'Fine': return '#62a4da';
+                    case 'Masterwork': return '#1a9306';
+                    case 'Rare': return '#fcd00b';
+                    case 'Exotic': return '#ffa405';
+                    case 'Ascended': return '#fb3e8e';
+                    case 'Legendary': return '#a020f0';
+                    default: return 'var(--border-color)';
+                }
+            };
+
+            const renderMatRow = (id, name, actual, req, defaultIcon = 'https://render.guildwars2.com/file/1856A01E331452E4C14E4C9CF4F818E3FAEF9B79/3124964.png') => {
+                const item = itemDetails[id] || { name: name, icon: defaultIcon, rarity: 'Fine' };
+                const percent = Math.min(100, Math.round((actual / req) * 100));
+                const isDone = actual >= req;
+                
+                return `
+                    <div class="mat-item" data-item-id="${id}">
+                        <div class="mat-details">
+                            <img src="${item.icon}" alt="${name}" title="${getTooltipAttr(item)}" style="border: 1px solid ${getRarityColor(item.rarity)}; border-radius: var(--radius-sm);" onerror="this.onerror=null;this.src='${defaultIcon}';">
+                            <span class="mat-name" style="font-weight: 500;">${item.name || name}</span>
+                        </div>
+                        <div class="mat-count-box" style="display: flex; align-items: center; gap: 15px;">
+                            <span class="mat-numbers" style="font-size: 13px; font-weight: 700; ${isDone ? 'color: var(--color-success);' : ''}">${actual} / ${req}</span>
+                            <div class="mat-progressbar" style="width: 100px; margin-top: 0; background-color: rgba(255,255,255,0.05); border-radius: 4px; overflow: hidden; height: 6px;">
+                                <div class="mat-bar" style="width: ${percent}%; height: 100%; border-radius: 4px; background: linear-gradient(to right, var(--color-primary), var(--color-accent));"></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            };
+
+            // Setup view layout
+            pane.innerHTML = `
+                <!-- Orrax Header -->
+                <div class="card" style="margin-bottom: 25px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+                        <div style="display: flex; align-items: center; gap: 15px;">
+                            <div style="width: 48px; height: 48px; background: rgba(160, 32, 240, 0.1); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; border: 1px solid rgba(160, 32, 240, 0.3);">
+                                <img src="${itemDetails[104857]?.icon || 'https://render.guildwars2.com/file/C61975234AD30103EF7DAD0BD52578F00B0CDF5B/3629148.png'}" alt="Orrax Conjuré" style="width: 32px; height: 32px;">
+                            </div>
+                            <div>
+                                <h3 style="font-size: 16px; font-weight: 800; margin: 0; font-family: var(--font-heading); color: var(--color-success);">Orrax Conjuré</h3>
+                                <p style="font-size: 12px; color: var(--text-secondary); margin: 2px 0 0 0;">Dos & Deltaplane Légendaires de Janthir Wilds</p>
+                            </div>
+                        </div>
+                        <div style="text-align: right;">
+                            <span id="orrax-overall-progress-percent" style="font-size: 24px; font-weight: 800; color: var(--color-success); font-family: var(--font-heading);">${overallPercent}%</span>
+                            <span id="orrax-overall-progress-steps" style="font-size: 11px; color: var(--text-muted); display: block; margin-top: 2px;">Progression Globale</span>
+                        </div>
+                    </div>
+                    <div class="mat-progressbar" style="height: 10px; background-color: rgba(255, 255, 255, 0.05); border-radius: 10px; overflow: hidden; margin-top: 0;">
+                        <div class="mat-bar" id="orrax-overall-progress-bar" style="width: ${overallPercent}%; background: linear-gradient(to right, var(--color-primary), var(--color-success)); height: 100%; border-radius: 10px; transition: width 0.5s ease;"></div>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 25px; align-items: flex-start; flex-wrap: wrap;">
+                    
+                    <!-- Left Column: Components Calculator -->
+                    <div style="display: flex; flex-direction: column; gap: 20px;">
+                        
+                        <!-- Map Resources -->
+                        <div class="card">
+                            <h3 style="font-size: 14px; font-weight: 700; margin-bottom: 15px; color: var(--color-accent); display: flex; align-items: center; gap: 8px;">
+                                <i class="fa-solid fa-map-location-dot"></i> Ressources des Cartes (Janthir)
+                            </h3>
+                            <div class="material-list" style="margin-top: 0;">
+                                ${renderMatRow(103351, "Pierre de rune mursaat", currentMursaatRunestone, 250)}
+                                ${renderMatRow(104282, "Fragment des Landes de Feu-de-Brume", currentShardMistburned, 100)}
+                                ${renderMatRow(104855, "Fragment de Bava Nisos", currentShardBava, 100)}
+                                ${renderMatRow(104229, "Viole d'obsidienne de titan", currentLiquidObsidian, 100)}
+                                ${renderMatRow(105004, "Résidu de porte des Brumes", currentMistsGateResidue, 50)}
+                                ${renderMatRow(76, "Ursus Oblige", currentUrsusOblige, 1250, 'https://render.guildwars2.com/file/1856A01E331452E4C14E4C9CF4F818E3FAEF9B79/3124964.png')}
+                            </div>
+                        </div>
+
+                        <!-- Crafting & Cooking -->
+                        <div class="card">
+                            <h3 style="font-size: 14px; font-weight: 700; margin-bottom: 15px; color: var(--color-accent); display: flex; align-items: center; gap: 8px;">
+                                <i class="fa-solid fa-bowl-food"></i> Artisanat & Cuisine (Le Festin)
+                            </h3>
+                            <div class="material-list" style="margin-top: 0;">
+                                ${renderMatRow(19976, "Trèfles mystiques", currentClover, 68)}
+                                ${renderMatRow(104844, "Fruit de l'ombre", currentShadowFruit, 20)}
+                                ${renderMatRow(100930, "Essence de faille amalgamée", currentAmalgamated, 27)}
+                                ${renderMatRow(79418, "Pierre de rune mystique", currentMysticRunestone, 250)}
+                            </div>
+                        </div>
+
+                        <!-- Major Forge Components -->
+                        <div class="card">
+                            <h3 style="font-size: 14px; font-weight: 700; margin-bottom: 15px; color: var(--color-accent); display: flex; align-items: center; gap: 8px;">
+                                <i class="fa-solid fa-gift"></i> Composants Majeurs & Précurseurs
+                            </h3>
+                            <div class="material-list" style="margin-top: 0;">
+                                ${renderMatRow(104690, "Orrax réprimé (Précurseur)", precursorOwned ? 1 : 0, 1)}
+                                ${renderMatRow(104777, "Lien du dragon", hasBinding ? 1 : 0, 1)}
+                                ${renderMatRow(96137, "Tribut draconique", hasTribute ? 1 : 0, 1)}
+                                ${renderMatRow(102367, "Dos de saumon du savoir", hasSalmon ? 1 : 0, 1)}
+                                ${renderMatRow(104704, "Dos de camping en frêne", hasAskur ? 1 : 0, 1)}
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- Right Column: Step-by-Step Guide & Quest Checklist -->
+                    <div style="display: flex; flex-direction: column; gap: 20px;">
+                        
+                        <!-- Quests Checklist -->
+                        <div class="card">
+                            <h3 style="font-size: 14px; font-weight: 700; margin-bottom: 15px; color: var(--color-accent); display: flex; align-items: center; gap: 8px;">
+                                <i class="fa-solid fa-list-check"></i> Étapes de Progression & Quêtes
+                            </h3>
+                            <div class="checklist-container">
+                                <!-- Story Checkbox -->
+                                <div class="check-item ${orraxChecklist.story ? 'completed' : ''}" style="margin-bottom: 10px;">
+                                    <label class="checkbox-container" style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer; width: 100%;">
+                                        <input type="checkbox" id="chk-orrax-story" ${orraxChecklist.story ? 'checked' : ''} style="margin-top: 3px;">
+                                        <div>
+                                            <span style="font-weight: 600; font-size: 13px;">Histoire : Salvation's Cost Complete</span>
+                                            <span style="font-size: 11px; color: var(--text-muted); display: block; margin-top: 2px;">
+                                                Terminer ce chapitre de Janthir Wilds pour débloquer les collections de craft d'Orrax.
+                                            </span>
+                                        </div>
+                                    </label>
+                                </div>
+
+                                <!-- Research Checkbox -->
+                                <div class="check-item ${orraxChecklist.research ? 'completed' : ''}" style="margin-bottom: 10px;">
+                                    <label class="checkbox-container" style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer; width: 100%;">
+                                        <input type="checkbox" id="chk-orrax-research" ${orraxChecklist.research ? 'checked' : ''} style="margin-top: 3px;">
+                                        <div>
+                                            <span style="font-weight: 600; font-size: 13px;">Recherche : Professeur Jorvik</span>
+                                            <span style="font-size: 11px; color: var(--text-muted); display: block; margin-top: 2px;">
+                                                Parler à Jorvik Jorundsson à Bava Nisos pour déverrouiller la quête "Cauchemars innommés".
+                                            </span>
+                                        </div>
+                                    </label>
+                                </div>
+
+                                <!-- Precursor Forge Guide -->
+                                <div style="border-top: 1px solid var(--border-color); padding-top: 15px; margin-top: 15px;">
+                                    <h4 style="font-size: 11px; font-weight: 700; margin-bottom: 10px; color: var(--text-secondary); text-transform: uppercase;">
+                                        Forge du Précurseur : Orrax réprimé
+                                    </h4>
+                                    <div style="display: flex; flex-direction: column; gap: 8px; font-size: 11px; color: var(--text-secondary); line-height: 1.4;">
+                                        <p>Combinez dans la Forge Mystique :</p>
+                                        <ul style="padding-left: 20px; display: flex; flex-direction: column; gap: 4px;">
+                                            <li><strong>Lien du dragon</strong> (${hasBinding ? '<span class="text-success">Possédé</span>' : '<span class="text-danger">Manquant</span>'})</li>
+                                            <li><strong>Tribut draconique</strong> (${hasTribute ? '<span class="text-success">Possédé</span>' : '<span class="text-danger">Manquant</span>'})</li>
+                                            <li><strong>Saumon du savoir</strong> (${hasSalmon ? '<span class="text-success">Possédé</span>' : '<span class="text-danger">Manquant</span>'})</li>
+                                            <li><strong>Nécessaire de camping en frêne</strong> (${hasAskur ? '<span class="text-success">Possédé</span>' : '<span class="text-danger">Manquant</span>'})</li>
+                                        </ul>
+                                    </div>
+                                </div>
+
+                                <!-- Final Forge Guide -->
+                                <div style="border-top: 1px solid var(--border-color); padding-top: 15px; margin-top: 15px;">
+                                    <h4 style="font-size: 11px; font-weight: 700; margin-bottom: 10px; color: var(--text-secondary); text-transform: uppercase;">
+                                        Forge Finale : Orrax conjuré
+                                    </h4>
+                                    <div style="display: flex; flex-direction: column; gap: 8px; font-size: 11px; color: var(--text-secondary); line-height: 1.4;">
+                                        <p>Combinez dans la Forge Mystique :</p>
+                                        <ul style="padding-left: 20px; display: flex; flex-direction: column; gap: 4px;">
+                                            <li><strong>Orrax réprimé</strong> (Précurseur) (${precursorOwned ? '<span class="text-success">Possédé</span>' : '<span class="text-danger">Manquant</span>'})</li>
+                                            <li><strong>Don des îles de Feu-de-Brume</strong> (${hasMistburnedIslesGift ? '<span class="text-success">Possédé</span>' : '<span class="text-danger">Manquant</span>'})</li>
+                                            <li><strong>Don des ombres</strong> (${hasShadowsGift ? '<span class="text-success">Possédé</span>' : '<span class="text-danger">Manquant</span>'})</li>
+                                            <li><strong>Don du festin</strong> (${hasFeastGift ? '<span class="text-success">Possédé</span>' : '<span class="text-danger">Manquant</span>'})</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Recipe Explanations / How-To -->
+                        <div class="card">
+                            <h3 style="font-size: 14px; font-weight: 700; margin-bottom: 15px; color: var(--color-accent); display: flex; align-items: center; gap: 8px;">
+                                <i class="fa-solid fa-circle-info"></i> Détails d'obtention des Dons
+                            </h3>
+                            <div style="font-size: 11px; color: var(--text-secondary); line-height: 1.5; display: flex; flex-direction: column; gap: 12px;">
+                                <div>
+                                    <strong style="color: var(--text-primary); display: block; margin-bottom: 3px;">Don de la Côte de Bas-Langue, etc.</strong>
+                                    Chaque carte possède un Don d'exploration qui s'obtient en complétant l'exploration complète ou certains succès liés à la carte (Côte de Bas-Langue, Janthir Syntri, Landes de Feu-de-Brume, Bava Nisos).
+                                </div>
+                                <div>
+                                    <strong style="color: var(--text-primary); display: block; margin-bottom: 3px;">Don de la compréhension des Titans (Sampaguita)</strong>
+                                    S'achète auprès de la vendeuse Sampaguita à Bava Nisos après avoir complété son cœur de renommée. Nécessite 25 Essences de faille amalgamées, 25 Restes curieux de Mursaat, 25 Fragments de ruines curieux de Mursaat et 1 250 Ursus Oblige.
+                                </div>
+                                <div>
+                                    <strong style="color: var(--text-primary); display: block; margin-bottom: 3px;">Le Festin culinaire (Fruit de l'ombre)</strong>
+                                    Chaque Don de plat culinaire (Mise en bouche, Plat principal, Accompagnement, Dessert) requiert 5 Fruits de l'ombre (cultivés dans votre Pavillon à partir de graines achetées à Deft Lahar) combinés avec de grandes quantités de nourriture de haut niveau (Chef 500 recommandé).
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                </div>
+            `;
+
+            // Wire manual checkboxes
+            const orraxCheckboxIds = ['chk-orrax-story', 'chk-orrax-research'];
+            orraxCheckboxIds.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.addEventListener('change', () => {
+                        const currentChecklist = this.getOrraxChecklist();
+                        const key = id.replace('chk-orrax-', '').replace(/-/g, '_');
+                        currentChecklist[key] = el.checked;
+                        this.saveOrraxChecklist(currentChecklist);
+                        
+                        const itemContainer = el.closest('.check-item');
+                        if (itemContainer) {
+                            itemContainer.classList.toggle('completed', el.checked);
+                        }
+                        
+                        this.renderContent();
                     });
                 }
             });
