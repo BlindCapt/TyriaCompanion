@@ -1899,3 +1899,9 @@ a:hover {
     color: var(--color-warning);
 }
 
+/* Wizard's Vault Shop Cards Styles */
+.shop-card:hover {
+    transform: translateY(-3px);
+    border-color: var(--color-primary) !important;
+    box-shadow: 0 8px 24px rgba(114, 9, 183, 0.2);
+}
