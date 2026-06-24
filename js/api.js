@@ -42,6 +42,14 @@ export const GW2Api = {
 
     // Generic Fetch with caching
     async fetchWithCache(endpoint, cacheKey, ttlMs = 5 * 60 * 1000, requiresAuth = false) {
+        // Auto-invalidate all API caches on daily reset (00:00 UTC)
+        const todayUtcStr = new Date().toUTCString().slice(5, 16);
+        const lastResetDate = localStorage.getItem('gw2_last_daily_reset_date');
+        if (lastResetDate !== todayUtcStr) {
+            localStorage.setItem('gw2_last_daily_reset_date', todayUtcStr);
+            this.clearCache();
+        }
+
         const fullCacheKey = CACHE_PREFIX + cacheKey;
         const cached = localStorage.getItem(fullCacheKey);
         

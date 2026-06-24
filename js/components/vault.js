@@ -59,11 +59,11 @@ export const Vault = {
 
         try {
             if (this.activeSubTab === 'daily') {
-                await this.renderObjectivesTab(pane, '/account/wizardsvault/daily', 'wizards_vault_daily', true);
+                await this.renderObjectivesTab(pane, '/account/wizardsvault/daily?lang=fr', 'wizards_vault_daily', true);
             } else if (this.activeSubTab === 'weekly') {
-                await this.renderObjectivesTab(pane, '/account/wizardsvault/weekly', 'wizards_vault_weekly', true);
+                await this.renderObjectivesTab(pane, '/account/wizardsvault/weekly?lang=fr', 'wizards_vault_weekly', true);
             } else {
-                await this.renderObjectivesTab(pane, '/account/wizardsvault/special', 'wizards_vault_special', false);
+                await this.renderObjectivesTab(pane, '/account/wizardsvault/special?lang=fr', 'wizards_vault_special', false);
             }
         } catch (error) {
             pane.innerHTML = `<p class="text-danger" style="text-align: center; padding: 20px;">Erreur : ${error.message}</p>`;

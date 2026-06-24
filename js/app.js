@@ -251,7 +251,7 @@ const App = {
         const isRendered = container.innerHTML.trim().length > 0;
         const hasApiKeyPrompt = container.querySelector('#btn-prompt-api');
         
-        if (tab === 'timers' || !isRendered || hasApiKeyPrompt) {
+        if (tab === 'timers' || tab === 'vault' || tab === 'dashboard' || !isRendered || hasApiKeyPrompt) {
             await this.views[tab].component.render(container);
         }
     },
