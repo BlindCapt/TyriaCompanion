@@ -1,7 +1,7 @@
 import { GW2Api } from '../api.js';
 
 export const Inventories = {
-    activeTab: 'global', // 'global', 'visual'
+    activeTab: 'global', // 'global', 'visual', 'bank'
     selectedChar: '', // Active character for visual view
     allDetails: {},
     wallet: null, // Global wallet data
@@ -10,30 +10,33 @@ export const Inventories = {
         container.innerHTML = `
             <div class="loader-container">
                 <div class="spinner"></div>
-                <p>Récupération des inventaires de vos personnages...</p>
+                <p>Récupération des inventaires et de votre banque...</p>
             </div>
         `;
 
         try {
             let characters = [];
+            let bank = [];
             try {
                 const results = await Promise.allSettled([
                     GW2Api.getCharacters(),
-                    GW2Api.getWallet()
+                    GW2Api.getWallet(),
+                    GW2Api.getBank()
                 ]);
-                characters = results[0].status === 'fulfilled' ? results[0].value : [];
+                characters = results[0].status === 'fulfilled' ? results[0].value || [] : [];
                 this.wallet = results[1].status === 'fulfilled' ? results[1].value : null;
+                bank = results[2].status === 'fulfilled' ? results[2].value || [] : [];
             } catch (e) {
                 console.error("Error fetching inventories dependencies", e);
             }
 
-            if (!characters || characters.length === 0) {
+            if ((!characters || characters.length === 0) && (!bank || bank.length === 0)) {
                 container.innerHTML = `
                     <div class="card" style="text-align: center; padding: 40px;">
                         <i class="fa-solid fa-users-slash" style="font-size: 40px; color: var(--text-muted); margin-bottom: 20px;"></i>
-                        <h3>Aucun personnage trouvé</h3>
+                        <h3>Aucune donnée trouvée</h3>
                         <p style="color: var(--text-secondary); margin-top: 10px;">
-                            Impossible de charger les personnages de votre compte.
+                            Impossible de charger les personnages et la banque de votre compte.
                         </p>
                     </div>
                 `;
@@ -41,13 +44,14 @@ export const Inventories = {
             }
 
             // Set default selected character if empty
-            if (!this.selectedChar) {
+            if (!this.selectedChar && characters.length > 0) {
                 this.selectedChar = characters[0].name;
             }
 
-            // 1. Gather all item IDs (including bags themselves)
+            // 1. Gather all item IDs (including bags themselves and bank slots)
             const allItems = [];
             const bagIds = [];
+            const bankIds = [];
 
             characters.forEach(char => {
                 if (!char.bags) return;
@@ -72,19 +76,36 @@ export const Inventories = {
                 });
             });
 
-            const uniqueIds = [...new Set([...allItems.map(i => i.id), ...bagIds])];
+            if (Array.isArray(bank)) {
+                bank.forEach((slot, slotIndex) => {
+                    if (!slot) return;
+                    bankIds.push(slot.id);
+                    allItems.push({
+                        id: slot.id,
+                        count: slot.count,
+                        binding: slot.binding || 'Non lié',
+                        boundTo: slot.bound_to || '',
+                        charName: 'Banque',
+                        charProfession: 'bank',
+                        bagIndex: Math.floor(slotIndex / 30) + 1,
+                        slotIndex: (slotIndex % 30) + 1
+                    });
+                });
+            }
+
+            const uniqueIds = [...new Set([...allItems.map(i => i.id), ...bagIds, ...bankIds])];
 
             // 2. Fetch item details
             this.allDetails = await GW2Api.getItemDetails(uniqueIds);
 
             // 3. Render base tabs structure
-            this.renderLayout(container, characters, allItems);
+            this.renderLayout(container, characters, allItems, bank);
 
         } catch (error) {
             container.innerHTML = `
                 <div class="card" style="border-color: var(--color-danger); padding: 30px; text-align: center;">
                     <i class="fa-solid fa-triangle-exclamation" style="font-size: 40px; color: var(--color-danger); margin-bottom: 15px;"></i>
-                    <h3>Erreur Inventaires</h3>
+                    <h3>Erreur Inventaires & Banque</h3>
                     <p style="margin-top: 10px; color: var(--text-secondary);">${error.message}</p>
                     <button class="btn btn-secondary" style="margin-top: 20px;" onclick="location.reload()">Réessayer</button>
                 </div>
@@ -92,7 +113,7 @@ export const Inventories = {
         }
     },
 
-    renderLayout(container, characters, allItems) {
+    renderLayout(container, characters, allItems, bank) {
         container.innerHTML = `
             <div class="legendary-tabs">
                 <button class="tab-btn ${this.activeTab === 'global' ? 'active' : ''}" id="btn-inv-global">
@@ -100,6 +121,9 @@ export const Inventories = {
                 </button>
                 <button class="tab-btn ${this.activeTab === 'visual' ? 'active' : ''}" id="btn-inv-visual">
                     <i class="fa-solid fa-boxes-stacked"></i> Sacs par Personnage
+                </button>
+                <button class="tab-btn ${this.activeTab === 'bank' ? 'active' : ''}" id="btn-inv-bank">
+                    <i class="fa-solid fa-vault"></i> Banque de Compte
                 </button>
             </div>
             <div id="inventories-content-pane">
@@ -110,28 +134,35 @@ export const Inventories = {
         // Wire sub tab events
         document.getElementById('btn-inv-global').addEventListener('click', () => {
             this.activeTab = 'global';
-            this.renderContent(characters, allItems);
+            this.renderContent(characters, allItems, bank);
         });
         document.getElementById('btn-inv-visual').addEventListener('click', () => {
             this.activeTab = 'visual';
-            this.renderContent(characters, allItems);
+            this.renderContent(characters, allItems, bank);
+        });
+        document.getElementById('btn-inv-bank').addEventListener('click', () => {
+            this.activeTab = 'bank';
+            this.renderContent(characters, allItems, bank);
         });
 
-        this.renderContent(characters, allItems);
+        this.renderContent(characters, allItems, bank);
     },
 
-    renderContent(characters, allItems) {
+    renderContent(characters, allItems, bank) {
         const pane = document.getElementById('inventories-content-pane');
         if (!pane) return;
 
         // Toggle active tabs
         document.getElementById('btn-inv-global').className = `tab-btn ${this.activeTab === 'global' ? 'active' : ''}`;
         document.getElementById('btn-inv-visual').className = `tab-btn ${this.activeTab === 'visual' ? 'active' : ''}`;
+        document.getElementById('btn-inv-bank').className = `tab-btn ${this.activeTab === 'bank' ? 'active' : ''}`;
 
         if (this.activeTab === 'global') {
             this.renderGlobalSearch(pane, characters, allItems);
-        } else {
+        } else if (this.activeTab === 'visual') {
             this.renderVisualGrid(pane, characters);
+        } else if (this.activeTab === 'bank') {
+            this.renderBankVisualGrid(pane, bank);
         }
     },
 
@@ -153,9 +184,10 @@ export const Inventories = {
                         </div>
                     </div>
                     <div style="flex: 1; min-width: 150px; display: flex; flex-direction: column; gap: 6px;">
-                        <label style="font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">Personnage</label>
+                        <label style="font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">Emplacement</label>
                         <select id="inv-filter-char" class="form-select" style="width: 100%;">
-                            <option value="all">Tous les personnages</option>
+                            <option value="all">Tous les emplacements</option>
+                            <option value="Banque">Banque de Compte</option>
                             ${characters.map(char => `<option value="${char.name}">${char.name}</option>`).join('')}
                         </select>
                     </div>
@@ -286,7 +318,8 @@ export const Inventories = {
             thief: '#c08a8a',
             elementalist: '#f28482',
             mesmer: '#b5179e',
-            necromancer: '#2ec4b6'
+            necromancer: '#2ec4b6',
+            bank: '#ffb703'
         };
 
         const iconMap = {
@@ -298,7 +331,8 @@ export const Inventories = {
             engineer: 'fa-gear',
             elementalist: 'fa-fire',
             necromancer: 'fa-skull',
-            mesmer: 'fa-wand-magic-sparkles'
+            mesmer: 'fa-wand-magic-sparkles',
+            bank: 'fa-vault'
         };
 
         tbody.innerHTML = filtered.map(item => {
@@ -356,7 +390,7 @@ export const Inventories = {
                         </div>
                     </td>
                     <td style="font-size: 11px; color: var(--text-muted);">
-                        Sac ${item.bagIndex}, Empl. ${item.slotIndex}
+                        ${item.charProfession === 'bank' ? `Onglet ${item.bagIndex}` : `Sac ${item.bagIndex}`}, Empl. ${item.slotIndex}
                     </td>
                     <td style="font-weight: 700; font-size: 12px;">${item.count}</td>
                     <td style="font-size: 11px;">${bindingText}</td>
@@ -642,5 +676,168 @@ export const Inventories = {
                 <span style="color: #cd7f32; display: inline-flex; align-items: center; gap: 3px;">${copper} <span class="coin-symbol copper-dot" style="width: 10px; height: 10px; border-radius: 50%; display: inline-block; background-color: #cd7f32; box-shadow: 0 0 5px rgba(205,127,50,0.6);" title="Bronze"></span></span>
             </div>
         `;
+    },
+
+    renderBankVisualGrid(pane, bank) {
+        const rarityColors = {
+            Junk: '#606075',
+            Basic: '#3c352d',
+            Fine: '#4cc9f0',
+            Masterwork: '#4ad66d',
+            Rare: '#ffb703',
+            Exotic: '#ff9f1c',
+            Ascended: '#ff4d6d',
+            Legendary: '#7209b7'
+        };
+
+        if (!bank || bank.length === 0) {
+            pane.innerHTML = `
+                <div class="gw2-inventory-window">
+                    <div class="gw2-inventory-header">
+                        <div class="gw2-inventory-title">
+                            <i class="fa-solid fa-vault"></i>
+                            <span>Banque de Compte</span>
+                        </div>
+                    </div>
+                    <div class="gw2-inventory-body" style="justify-content: center; align-items: center; padding: 40px; color: var(--text-secondary);">
+                        Votre banque de compte est vide ou inaccessible.
+                    </div>
+                </div>
+            `;
+            return;
+        }
+
+        const slotsPerTab = 30;
+        const totalSlots = bank.length;
+        const numTabs = Math.ceil(totalSlots / slotsPerTab);
+        let occupiedSlots = 0;
+
+        // Count occupied slots
+        bank.forEach(slot => {
+            if (slot) occupiedSlots++;
+        });
+
+        // Build stacked tabs HTML
+        let bankTabsHtml = '';
+        for (let t = 0; t < numTabs; t++) {
+            let tabSlotsHtml = '';
+            let occupiedInTab = 0;
+            const startIdx = t * slotsPerTab;
+
+            for (let s = 0; s < slotsPerTab; s++) {
+                const globalIdx = startIdx + s;
+                const slot = globalIdx < totalSlots ? bank[globalIdx] : null;
+
+                if (slot) {
+                    occupiedInTab++;
+                    const itemDetail = this.allDetails[slot.id];
+                    const name = itemDetail?.name || `Objet #${slot.id}`;
+                    const icon = itemDetail?.icon || 'https://wiki.guildwars2.com/images/a/a1/Raptor_art.png';
+                    const rarity = itemDetail?.rarity || 'Basic';
+                    const rarityColor = rarityColors[rarity] || '#3c352d';
+
+                    // Build dynamic native tooltip
+                    let titleAttr = `${name}\n[${rarity}]`;
+                    if (slot.binding) {
+                        const bindLabel = slot.binding === 'Soulbind' ? "Lié à l'âme" : slot.binding === 'Account' ? "Lié au compte" : slot.binding;
+                        titleAttr += `\n${bindLabel}`;
+                    }
+                    if (itemDetail?.level) {
+                        titleAttr += `\nNiveau requis: ${itemDetail.level}`;
+                    }
+                    if (itemDetail?.description) {
+                        const cleanDesc = itemDetail.description.replace(/<[^>]*>/g, '');
+                        titleAttr += `\n\n"${cleanDesc}"`;
+                    }
+
+                    tabSlotsHtml += `
+                        <div class="inv-visual-slot" data-item-name="${name.toLowerCase()}" data-item-id="${slot.id}" style="border-color: ${rarityColor};" title="${titleAttr}">
+                            <img src="${icon}" alt="${name}">
+                            ${slot.count > 1 ? `<span style="position: absolute; bottom: 1px; right: 3px; font-size: 9px; font-weight: 800; color: #fff; text-shadow: 1px 1px 2px #000, -1px -1px 2px #000;">${slot.count}</span>` : ''}
+                        </div>
+                    `;
+                } else {
+                    tabSlotsHtml += `
+                        <div class="inv-visual-slot-empty"></div>
+                    `;
+                }
+            }
+
+            bankTabsHtml += `
+                <div class="gw2-bank-tab-section" style="margin-bottom: 25px;">
+                    <div class="gw2-bank-tab-header" style="font-weight: 700; color: #e0d0be; font-size: 11px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.03); padding-bottom: 4px; font-family: var(--font-heading); text-transform: uppercase; letter-spacing: 0.5px;">
+                        <span><i class="fa-solid fa-folder-open" style="color: var(--color-accent); margin-right: 6px;"></i> Onglet de banque ${t + 1}</span>
+                        <span style="font-size: 10px; color: var(--text-muted); text-transform: none; font-weight: 500;">${occupiedInTab} / 30 emplacements</span>
+                    </div>
+                    <div class="gw2-inventory-grid">
+                        ${tabSlotsHtml}
+                    </div>
+                </div>
+            `;
+        }
+
+        // Gold formatting
+        const goldObj = this.wallet ? this.wallet.find(c => c.id === 1) : null;
+        const pocketGoldHtml = this.formatPocketGold(goldObj ? goldObj.value : 0);
+
+        pane.innerHTML = `
+            <div class="gw2-inventory-window" style="max-width: 500px;">
+                <!-- Header with Title and Search -->
+                <div class="gw2-inventory-header">
+                    <div class="gw2-inventory-title">
+                        <i class="fa-solid fa-vault"></i>
+                        <span>Banque de Compte</span>
+                    </div>
+                    <div class="gw2-inventory-search-container">
+                        <input type="text" id="gw2-bank-search" placeholder="Rechercher..." autocomplete="off">
+                        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                    </div>
+                </div>
+
+                <!-- Body (single visual scrollable container) -->
+                <div class="gw2-inventory-body" style="padding: 15px;">
+                    <div class="gw2-inventory-grid-container" style="max-height: 520px; width: 100%;">
+                        <div style="display: flex; flex-direction: column; width: 100%;">
+                            ${bankTabsHtml}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer -->
+                <div class="gw2-inventory-footer">
+                    <div class="gw2-inventory-wallet">
+                        ${pocketGoldHtml}
+                    </div>
+                    <div class="gw2-inventory-slots-count">
+                        ${occupiedSlots} / ${totalSlots} Emplacements
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Wire events: Search filtering
+        const searchInput = document.getElementById('gw2-bank-search');
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => {
+                const query = e.target.value.toLowerCase().trim();
+                const slots = pane.querySelectorAll('.inv-visual-slot, .inv-visual-slot-empty');
+                
+                slots.forEach(slot => {
+                    if (!query) {
+                        slot.classList.remove('dimmed');
+                        return;
+                    }
+                    
+                    const name = slot.getAttribute('data-item-name') || '';
+                    const id = slot.getAttribute('data-item-id') || '';
+                    
+                    if (name.includes(query) || id.includes(query)) {
+                        slot.classList.remove('dimmed');
+                    } else {
+                        slot.classList.add('dimmed');
+                    }
+                });
+            });
+        }
     }
 };
