@@ -10,22 +10,33 @@ export const Inventories = {
         container.innerHTML = `
             <div class="loader-container">
                 <div class="spinner"></div>
-                <p>Récupération des inventaires et de votre banque...</p>
+                <p>Récupération des inventaires, de votre banque et de vos stockages...</p>
             </div>
         `;
 
         try {
             let characters = [];
             let bank = [];
+            let accountInfo = null;
+            let materials = [];
+            let categories = [];
+            let guildsStashes = [];
+
             try {
                 const results = await Promise.allSettled([
                     GW2Api.getCharacters(),
                     GW2Api.getWallet(),
-                    GW2Api.getBank()
+                    GW2Api.getBank(),
+                    GW2Api.getAccountInfo(),
+                    GW2Api.getAccountMaterials(),
+                    GW2Api.getMaterialsCategories()
                 ]);
                 characters = results[0].status === 'fulfilled' ? results[0].value || [] : [];
                 this.wallet = results[1].status === 'fulfilled' ? results[1].value : null;
                 bank = results[2].status === 'fulfilled' ? results[2].value || [] : [];
+                accountInfo = results[3].status === 'fulfilled' ? results[3].value : null;
+                materials = results[4].status === 'fulfilled' ? results[4].value || [] : [];
+                categories = results[5].status === 'fulfilled' ? results[5].value || [] : [];
             } catch (e) {
                 console.error("Error fetching inventories dependencies", e);
             }
@@ -43,15 +54,62 @@ export const Inventories = {
                 return;
             }
 
+            // Fetch guild details and stashes in parallel if accountInfo exists
+            if (accountInfo && accountInfo.guilds && accountInfo.guilds.length > 0) {
+                try {
+                    const guildPromises = accountInfo.guilds.map(async (guildId) => {
+                        try {
+                            const [infoResult, stashResult] = await Promise.allSettled([
+                                GW2Api.getGuildInfo(guildId),
+                                GW2Api.getGuildStash(guildId)
+                            ]);
+                            
+                            if (infoResult.status === 'fulfilled' && stashResult.status === 'fulfilled') {
+                                return {
+                                    guildId,
+                                    name: infoResult.value.name,
+                                    tag: infoResult.value.tag,
+                                    stash: stashResult.value
+                                };
+                            } else if (infoResult.status === 'fulfilled') {
+                                return {
+                                    guildId,
+                                    name: infoResult.value.name,
+                                    tag: infoResult.value.tag,
+                                    stash: null
+                                };
+                            }
+                        } catch (err) {
+                            console.warn(`Could not fetch details/stash for guild ${guildId}`, err);
+                        }
+                        return null;
+                    });
+                    
+                    const resolvedGuilds = await Promise.all(guildPromises);
+                    guildsStashes = resolvedGuilds.filter(g => g && g.stash);
+                } catch (ge) {
+                    console.error("Error fetching guild stashes", ge);
+                }
+            }
+
+            this.materials = materials;
+            this.materialsCategories = categories;
+            this.guildsStashes = guildsStashes;
+            if (guildsStashes.length > 0 && !this.selectedGuildId) {
+                this.selectedGuildId = guildsStashes[0].guildId;
+            }
+
             // Set default selected character if empty
             if (!this.selectedChar && characters.length > 0) {
                 this.selectedChar = characters[0].name;
             }
 
-            // 1. Gather all item IDs (including bags themselves and bank slots)
+            // 1. Gather all item IDs (including bags themselves, bank slots, owned materials and guild stashes)
             const allItems = [];
             const bagIds = [];
             const bankIds = [];
+            const materialIds = [];
+            const guildIds = [];
 
             characters.forEach(char => {
                 if (!char.bags) return;
@@ -93,7 +151,35 @@ export const Inventories = {
                 });
             }
 
-            const uniqueIds = [...new Set([...allItems.map(i => i.id), ...bagIds, ...bankIds])];
+            if (Array.isArray(materials)) {
+                materials.forEach(mat => {
+                    if (mat && mat.count > 0) {
+                        materialIds.push(mat.id);
+                    }
+                });
+            }
+
+            guildsStashes.forEach(g => {
+                if (g.stash && Array.isArray(g.stash)) {
+                    g.stash.forEach(tab => {
+                        if (tab.inventory && Array.isArray(tab.inventory)) {
+                            tab.inventory.forEach(slot => {
+                                if (slot && slot.id) {
+                                    guildIds.push(slot.id);
+                                }
+                            });
+                        }
+                    });
+                }
+            });
+
+            const uniqueIds = [...new Set([
+                ...allItems.map(i => i.id),
+                ...bagIds,
+                ...bankIds,
+                ...materialIds,
+                ...guildIds
+            ])];
 
             // 2. Fetch item details
             this.allDetails = await GW2Api.getItemDetails(uniqueIds);
@@ -123,7 +209,7 @@ export const Inventories = {
                     <i class="fa-solid fa-boxes-stacked"></i> Sacs par Personnage
                 </button>
                 <button class="tab-btn ${this.activeTab === 'bank' ? 'active' : ''}" id="btn-inv-bank">
-                    <i class="fa-solid fa-vault"></i> Banque de Compte
+                    <i class="fa-solid fa-vault"></i> Banque & Stockages
                 </button>
             </div>
             <div id="inventories-content-pane">
@@ -162,8 +248,27 @@ export const Inventories = {
         } else if (this.activeTab === 'visual') {
             this.renderVisualGrid(pane, characters);
         } else if (this.activeTab === 'bank') {
-            this.renderBankVisualGrid(pane, bank);
+            this.renderBankAndStorages(pane, bank);
         }
+    },
+
+    renderBankAndStorages(pane, bank) {
+        pane.innerHTML = `
+            <div style="display: flex; flex-direction: column; gap: 35px; align-items: center; width: 100%;">
+                <div id="bank-section-container" style="width: 100%; display: flex; justify-content: center;"></div>
+                <div id="materials-section-container" style="width: 100%; display: flex; justify-content: center;"></div>
+                <div id="guild-section-container" style="width: 100%; display: flex; flex-direction: column; align-items: center; gap: 15px; width: 100%;"></div>
+            </div>
+        `;
+
+        const bankContainer = document.getElementById('bank-section-container');
+        this.renderBankVisualGrid(bankContainer, bank);
+
+        const materialsContainer = document.getElementById('materials-section-container');
+        this.renderMaterialsStorage(materialsContainer);
+
+        const guildContainer = document.getElementById('guild-section-container');
+        this.renderGuildVaults(guildContainer);
     },
 
     renderGlobalSearch(pane, characters, allItems) {
@@ -839,5 +944,388 @@ export const Inventories = {
                 });
             });
         }
+    },
+
+    renderMaterialsStorage(pane) {
+        const rarityColors = {
+            Junk: '#606075',
+            Basic: '#3c352d',
+            Fine: '#4cc9f0',
+            Masterwork: '#4ad66d',
+            Rare: '#ffb703',
+            Exotic: '#ff9f1c',
+            Ascended: '#ff4d6d',
+            Legendary: '#7209b7'
+        };
+
+        const materials = this.materials || [];
+        const categories = this.materialsCategories || [];
+
+        // Build HTML for each category
+        let categoriesHtml = '';
+        let totalOwnedMaterials = 0;
+
+        categories.forEach(cat => {
+            let slotsHtml = '';
+            let ownedInCat = 0;
+
+            if (cat.items && Array.isArray(cat.items)) {
+                cat.items.forEach(itemId => {
+                    const userMat = materials.find(m => m.id === itemId);
+                    if (userMat && userMat.count > 0) {
+                        ownedInCat++;
+                        totalOwnedMaterials++;
+                        const itemDetail = this.allDetails[itemId];
+                        const name = itemDetail?.name || `Objet #${itemId}`;
+                        const icon = itemDetail?.icon || 'https://wiki.guildwars2.com/images/a/a1/Raptor_art.png';
+                        const rarity = itemDetail?.rarity || 'Basic';
+                        const rarityColor = rarityColors[rarity] || '#3c352d';
+
+                        let titleAttr = `${name}\n[${rarity}]\nQuantité: ${userMat.count}`;
+                        if (itemDetail?.description) {
+                            const cleanDesc = itemDetail.description.replace(/<[^>]*>/g, '');
+                            titleAttr += `\n\n"${cleanDesc}"`;
+                        }
+
+                        slotsHtml += `
+                            <div class="inv-visual-slot" data-item-name="${name.toLowerCase()}" data-item-id="${itemId}" style="border-color: ${rarityColor};" title="${titleAttr}">
+                                <img src="${icon}" alt="${name}">
+                                <span style="position: absolute; bottom: 1px; right: 3px; font-size: 9px; font-weight: 800; color: #fff; text-shadow: 1px 1px 2px #000, -1px -1px 2px #000;">${userMat.count}</span>
+                            </div>
+                        `;
+                    }
+                });
+            }
+
+            if (ownedInCat > 0) {
+                categoriesHtml += `
+                    <div class="gw2-material-category" data-category-id="${cat.id}" style="margin-bottom: 20px;">
+                        <div class="gw2-material-category-header" style="cursor: pointer; display: flex; align-items: center; justify-content: space-between; padding: 10px 15px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); font-weight: 700; color: #e0d0be; font-size: 12px; font-family: var(--font-heading); text-transform: uppercase; border-radius: var(--radius-sm); margin-bottom: 10px; transition: background 0.2s;">
+                            <span style="display: flex; align-items: center; gap: 8px;">
+                                <i class="fa-solid fa-chevron-down toggle-icon" style="transition: transform 0.2s; color: var(--color-accent);"></i>
+                                <span>${cat.name}</span>
+                            </span>
+                            <span style="font-size: 11px; color: var(--text-muted); font-weight: 500; text-transform: none;">${ownedInCat} objets</span>
+                        </div>
+                        <div class="gw2-material-category-body gw2-inventory-grid" style="padding: 0 5px;">
+                            ${slotsHtml}
+                        </div>
+                    </div>
+                `;
+            }
+        });
+
+        if (totalOwnedMaterials === 0) {
+            categoriesHtml = `
+                <div style="text-align: center; padding: 40px; color: var(--text-secondary);">
+                    Aucun matériau stocké sur ce compte.
+                </div>
+            `;
+        }
+
+        pane.innerHTML = `
+            <style>
+                .gw2-material-category-header:hover {
+                    background: rgba(255, 255, 255, 0.07) !important;
+                    color: var(--color-accent) !important;
+                }
+            </style>
+            <div class="gw2-inventory-window" style="max-width: 500px;">
+                <!-- Header with Title and Search -->
+                <div class="gw2-inventory-header">
+                    <div class="gw2-inventory-title">
+                        <i class="fa-solid fa-mortar-pestle"></i>
+                        <span>Stockage de Matériaux</span>
+                    </div>
+                    <div class="gw2-inventory-search-container">
+                        <input type="text" id="gw2-materials-search" placeholder="Rechercher..." autocomplete="off">
+                        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                    </div>
+                </div>
+
+                <!-- Body (single visual scrollable container) -->
+                <div class="gw2-inventory-body" style="padding: 15px;">
+                    <div class="gw2-inventory-grid-container" style="max-height: 520px; width: 100%;">
+                        <div style="display: flex; flex-direction: column; width: 100%;">
+                            ${categoriesHtml}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer -->
+                <div class="gw2-inventory-footer" style="justify-content: flex-end;">
+                    <div class="gw2-inventory-slots-count">
+                        ${totalOwnedMaterials} Matériaux possédés
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Wire events: Category collapsibility
+        const categoryHeaders = pane.querySelectorAll('.gw2-material-category-header');
+        categoryHeaders.forEach(header => {
+            header.addEventListener('click', () => {
+                const body = header.nextElementSibling;
+                const icon = header.querySelector('.toggle-icon');
+                if (body.style.display === 'none') {
+                    body.style.display = 'grid';
+                    icon.style.transform = 'rotate(0deg)';
+                } else {
+                    body.style.display = 'none';
+                    icon.style.transform = 'rotate(-90deg)';
+                }
+            });
+        });
+
+        // Wire events: Search filtering
+        const searchInput = document.getElementById('gw2-materials-search');
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => {
+                const query = e.target.value.toLowerCase().trim();
+                const slots = pane.querySelectorAll('.inv-visual-slot');
+                
+                slots.forEach(slot => {
+                    if (!query) {
+                        slot.classList.remove('dimmed');
+                        return;
+                    }
+                    
+                    const name = slot.getAttribute('data-item-name') || '';
+                    const id = slot.getAttribute('data-item-id') || '';
+                    
+                    if (name.includes(query) || id.includes(query)) {
+                        slot.classList.remove('dimmed');
+                    } else {
+                        slot.classList.add('dimmed');
+                    }
+                });
+
+                // Adjust category headers visibility/collapse based on match
+                const categories = pane.querySelectorAll('.gw2-material-category');
+                categories.forEach(cat => {
+                    const body = cat.querySelector('.gw2-material-category-body');
+                    const header = cat.querySelector('.gw2-material-category-header');
+                    const slots = cat.querySelectorAll('.inv-visual-slot');
+                    const hasVisibleSlots = Array.from(slots).some(s => !s.classList.contains('dimmed'));
+
+                    if (query) {
+                        if (hasVisibleSlots) {
+                            cat.style.display = 'block';
+                            body.style.display = 'grid';
+                            const icon = header.querySelector('.toggle-icon');
+                            if (icon) icon.style.transform = 'rotate(0deg)';
+                        } else {
+                            cat.style.display = 'none';
+                        }
+                    } else {
+                        cat.style.display = 'block';
+                    }
+                });
+            });
+        }
+    },
+
+    renderGuildVaults(pane) {
+        const guildsStashes = this.guildsStashes || [];
+
+        if (guildsStashes.length === 0) {
+            pane.innerHTML = `
+                <div class="gw2-inventory-window" style="max-width: 500px;">
+                    <div class="gw2-inventory-header">
+                        <div class="gw2-inventory-title">
+                            <i class="fa-solid fa-shield-halved"></i>
+                            <span>Coffres de Guilde</span>
+                        </div>
+                    </div>
+                    <div class="gw2-inventory-body" style="justify-content: center; align-items: center; padding: 40px; color: var(--text-secondary); text-align: center;">
+                        <i class="fa-solid fa-circle-info" style="font-size: 30px; margin-bottom: 15px; color: var(--text-muted);"></i>
+                        <p>Aucun coffre de guilde accessible ou clé API sans droits de guilde.</p>
+                    </div>
+                </div>
+            `;
+            return;
+        }
+
+        const guildButtonsHtml = guildsStashes.map(g => {
+            const isActive = g.guildId === this.selectedGuildId;
+            return `
+                <button class="inv-char-btn ${isActive ? 'active' : ''}" data-guild="${g.guildId}" style="--char-color: var(--color-accent);">
+                    <i class="fa-solid fa-shield-halved"></i>
+                    <span>${g.name}</span>
+                    <span class="char-lvl">[${g.tag}]</span>
+                </button>
+            `;
+        }).join('');
+
+        pane.innerHTML = `
+            <div class="inv-char-selector">
+                ${guildButtonsHtml}
+            </div>
+            
+            <div id="guild-stashes-container">
+                <!-- Guild stash window will render here -->
+            </div>
+        `;
+
+        // Wire guild selectors
+        const guildButtons = pane.querySelectorAll('.inv-char-btn');
+        guildButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const guildId = btn.getAttribute('data-guild');
+                this.selectedGuildId = guildId;
+                guildButtons.forEach(b => b.classList.toggle('active', b.getAttribute('data-guild') === guildId));
+                this.renderGuildStashContent();
+            });
+        });
+
+        this.renderGuildStashContent();
+    },
+
+    renderGuildStashContent() {
+        const container = document.getElementById('guild-stashes-container');
+        if (!container) return;
+
+        const currentGuild = this.guildsStashes.find(g => g.guildId === this.selectedGuildId);
+        if (!currentGuild || !currentGuild.stash || !Array.isArray(currentGuild.stash)) {
+            container.innerHTML = `
+                <div class="gw2-inventory-window" style="max-width: 500px;">
+                    <div class="gw2-inventory-body" style="justify-content: center; align-items: center; padding: 40px; color: var(--text-secondary);">
+                        Ce coffre de guilde est vide ou inaccessible.
+                    </div>
+                </div>
+            `;
+            return;
+        }
+
+        const rarityColors = {
+            Junk: '#606075',
+            Basic: '#3c352d',
+            Fine: '#4cc9f0',
+            Masterwork: '#4ad66d',
+            Rare: '#ffb703',
+            Exotic: '#ff9f1c',
+            Ascended: '#ff4d6d',
+            Legendary: '#7209b7'
+        };
+
+        let stashTabsHtml = '';
+        let totalSlots = 0;
+        let occupiedSlots = 0;
+
+        currentGuild.stash.forEach((tab, tIdx) => {
+            let tabSlotsHtml = '';
+            const size = tab.size || 50;
+            totalSlots += size;
+            let occupiedInTab = 0;
+
+            for (let s = 0; s < size; s++) {
+                const slot = tab.inventory && tab.inventory[s];
+                if (slot) {
+                    occupiedInTab++;
+                    occupiedSlots++;
+                    const itemDetail = this.allDetails[slot.id];
+                    const name = itemDetail?.name || `Objet #${slot.id}`;
+                    const icon = itemDetail?.icon || 'https://wiki.guildwars2.com/images/a/a1/Raptor_art.png';
+                    const rarity = itemDetail?.rarity || 'Basic';
+                    const rarityColor = rarityColors[rarity] || '#3c352d';
+
+                    let titleAttr = `${name}\n[${rarity}]`;
+                    if (slot.binding) {
+                        titleAttr += `\nLiaison: ${slot.binding}`;
+                    }
+                    if (itemDetail?.description) {
+                        const cleanDesc = itemDetail.description.replace(/<[^>]*>/g, '');
+                        titleAttr += `\n\n"${cleanDesc}"`;
+                    }
+
+                    tabSlotsHtml += `
+                        <div class="inv-visual-slot" data-item-name="${name.toLowerCase()}" data-item-id="${slot.id}" style="border-color: ${rarityColor};" title="${titleAttr}">
+                            <img src="${icon}" alt="${name}">
+                            ${slot.count > 1 ? `<span style="position: absolute; bottom: 1px; right: 3px; font-size: 9px; font-weight: 800; color: #fff; text-shadow: 1px 1px 2px #000, -1px -1px 2px #000;">${slot.count}</span>` : ''}
+                        </div>
+                    `;
+                } else {
+                    tabSlotsHtml += `
+                        <div class="inv-visual-slot-empty"></div>
+                    `;
+                }
+            }
+
+            const tabGoldHtml = this.formatPocketGold(tab.coins || 0);
+            const tabName = tab.note || (size === 50 ? "Réserve de guilde" : size === 100 ? "Trésor de guilde" : "Cave de guilde");
+
+            stashTabsHtml += `
+                <div class="gw2-bank-tab-section" style="margin-bottom: 25px;">
+                    <div class="gw2-bank-tab-header" style="font-weight: 700; color: #e0d0be; font-size: 11px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.03); padding-bottom: 4px; font-family: var(--font-heading); text-transform: uppercase; letter-spacing: 0.5px;">
+                        <span><i class="fa-solid fa-folder-open" style="color: var(--color-accent); margin-right: 6px;"></i> ${tabName} (${size} emplacements)</span>
+                        <div style="display: flex; align-items: center; gap: 15px;">
+                            ${tab.coins > 0 ? `<div style="display: flex; align-items: center; gap: 5px;"><span style="color: var(--text-muted); font-size: 10px; font-weight: 500;">Or déposé :</span> ${tabGoldHtml}</div>` : ''}
+                            <span style="font-size: 10px; color: var(--text-muted); text-transform: none; font-weight: 500;">${occupiedInTab} / ${size} emplacements</span>
+                        </div>
+                    </div>
+                    <div class="gw2-inventory-grid">
+                        ${tabSlotsHtml}
+                    </div>
+                </div>
+            `;
+        });
+
+        container.innerHTML = `
+            <div class="gw2-inventory-window" style="max-width: 500px;">
+                <!-- Header with Title and Search -->
+                <div class="gw2-inventory-header">
+                    <div class="gw2-inventory-title">
+                        <i class="fa-solid fa-shield-halved"></i>
+                        <span>Coffre de Guilde : ${currentGuild.name}</span>
+                    </div>
+                    <div class="gw2-inventory-search-container">
+                        <input type="text" id="gw2-guild-search" placeholder="Rechercher..." autocomplete="off">
+                        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                    </div>
+                </div>
+
+                <!-- Body (single visual scrollable container) -->
+                <div class="gw2-inventory-body" style="padding: 15px;">
+                    <div class="gw2-inventory-grid-container" style="max-height: 520px; width: 100%;">
+                        <div style="display: flex; flex-direction: column; width: 100%;">
+                            ${stashTabsHtml}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer -->
+                <div class="gw2-inventory-footer" style="justify-content: flex-end;">
+                    <div class="gw2-inventory-slots-count">
+                        ${occupiedSlots} / ${totalSlots} Emplacements
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Wire events: Search filtering
+        const searchInput = document.getElementById('gw2-guild-search');
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => {
+                const query = e.target.value.toLowerCase().trim();
+                const slots = container.querySelectorAll('.inv-visual-slot, .inv-visual-slot-empty');
+                
+                slots.forEach(slot => {
+                    if (!query) {
+                        slot.classList.remove('dimmed');
+                        return;
+                    }
+                    
+                    const name = slot.getAttribute('data-item-name') || '';
+                    const id = slot.getAttribute('data-item-id') || '';
+                    
+                    if (name.includes(query) || id.includes(query)) {
+                        slot.classList.remove('dimmed');
+                    } else {
+                        slot.classList.add('dimmed');
+                    }
+                });
+            });
+        }
     }
 };
+

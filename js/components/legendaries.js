@@ -260,7 +260,7 @@ export const Legendaries = {
                 100930, 19675, 19721, // Amalgamated, Clover, Ecto
                 19925, 81840, 19678, // Obsidian Shard, Dark Energy Cube, Gift of Battle
                 46746, 46745,         // Vision Crystal, Lesser Vision Crystal
-                24295, 24298, 24305, 24277, // T6 materials (Blood, Venom, Totem, Dust)
+                24295, 24283, 24300, 24277, // T6 materials (Blood, Venom, Totem, Dust)
                 71655, 71787, 73236, 73196  // T6 gifts (Blood, Venom, Totem, Dust)
             ];
             const itemDetails = await GW2Api.getItemDetails(itemIds);
@@ -283,8 +283,8 @@ export const Legendaries = {
             const giftDustCount = this.countTotalItem(73196, bank, materials, characters);
 
             const bloodCount = this.countTotalItem(24295, bank, materials, characters) + (giftBloodCount * 100);
-            const venomCount = this.countTotalItem(24298, bank, materials, characters) + (giftVenomCount * 100);
-            const totemCount = this.countTotalItem(24305, bank, materials, characters) + (giftTotemCount * 100);
+            const venomCount = this.countTotalItem(24283, bank, materials, characters) + (giftVenomCount * 100);
+            const totemCount = this.countTotalItem(24300, bank, materials, characters) + (giftTotemCount * 100);
             const dustCount = this.countTotalItem(24277, bank, materials, characters) + (giftDustCount * 100);
 
             // Obsidian requirements (1 piece vs 6 pieces)
@@ -332,8 +332,8 @@ export const Legendaries = {
 
             // T6 Icons
             const bloodIcon = itemDetails[24295]?.icon || 'https://render.guildwars2.com/file/1A930A6A7B5B01EAB4CB36E79014C12B500BF6B3/66950.png';
-            const venomIcon = itemDetails[24298]?.icon || 'https://render.guildwars2.com/file/52A92F9505FD49FB655A0631525556D5B80E55C0/66953.png';
-            const totemIcon = itemDetails[24305]?.icon || 'https://render.guildwars2.com/file/02EFB1C5E11B2FF4B4AC25A84E2302D244C82AA3/66958.png';
+            const venomIcon = itemDetails[24283]?.icon || 'https://render.guildwars2.com/file/543EC37900EA2A57E77FA891193A48D66AA224AB/66939.png';
+            const totemIcon = itemDetails[24300]?.icon || 'https://render.guildwars2.com/file/C1ABF9082901FC3CEABC3138CBCCA1DAD5D41812/66955.png';
             const dustIcon = itemDetails[24277]?.icon || 'https://render.guildwars2.com/file/080D00670558CD9E580D5662030394B2206E92A6/434537.png';
 
             // Get persistent manual checklist
@@ -661,9 +661,9 @@ export const Legendaries = {
                                 </div>
                             </div>
                             <!-- Powerful Venom Sac -->
-                            <div class="mat-item" data-item-id="24298">
+                            <div class="mat-item" data-item-id="24283">
                                 <div class="mat-details">
-                                    <img src="${venomIcon}" alt="Venin puissant" title="${getTooltipAttr(itemDetails[24298])}" onerror="this.onerror=null;this.src='https://render.guildwars2.com/file/52A92F9505FD49FB655A0631525556D5B80E55C0/66953.png';">
+                                    <img src="${venomIcon}" alt="Venin puissant" title="${getTooltipAttr(itemDetails[24283])}" onerror="this.onerror=null;this.src='https://render.guildwars2.com/file/543EC37900EA2A57E77FA891193A48D66AA224AB/66939.png';">
                                     <span class="mat-name">Sacs de venin puissant</span>
                                 </div>
                                 <div class="mat-count-box">
@@ -672,9 +672,9 @@ export const Legendaries = {
                                 </div>
                             </div>
                             <!-- Elaborate Totem -->
-                            <div class="mat-item" data-item-id="24305">
+                            <div class="mat-item" data-item-id="24300">
                                 <div class="mat-details">
-                                    <img src="${totemIcon}" alt="Totems élaborés" title="${getTooltipAttr(itemDetails[24305])}" onerror="this.onerror=null;this.src='https://render.guildwars2.com/file/02EFB1C5E11B2FF4B4AC25A84E2302D244C82AA3/66958.png';">
+                                    <img src="${totemIcon}" alt="Totems élaborés" title="${getTooltipAttr(itemDetails[24300])}" onerror="this.onerror=null;this.src='https://render.guildwars2.com/file/C1ABF9082901FC3CEABC3138CBCCA1DAD5D41812/66955.png';">
                                     <span class="mat-name">Totems élaborés</span>
                                 </div>
                                 <div class="mat-count-box">
@@ -1410,8 +1410,8 @@ export const Legendaries = {
         const giftDustCount = this.countTotalItem(73196, bank, materials, characters);
 
         const bloodCount = this.countTotalItem(24295, bank, materials, characters) + (giftBloodCount * 100);
-        const venomCount = this.countTotalItem(24298, bank, materials, characters) + (giftVenomCount * 100);
-        const totemCount = this.countTotalItem(24305, bank, materials, characters) + (giftTotemCount * 100);
+        const venomCount = this.countTotalItem(24283, bank, materials, characters) + (giftVenomCount * 100);
+        const totemCount = this.countTotalItem(24300, bank, materials, characters) + (giftTotemCount * 100);
         const dustCount = this.countTotalItem(24277, bank, materials, characters) + (giftDustCount * 100);
 
         let completedSteps = 0;

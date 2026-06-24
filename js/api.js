@@ -197,6 +197,23 @@ export const GW2Api = {
         return this.fetchWithCache('/account/bank', 'bank', 3 * 60 * 1000, true);
     },
 
+    async getGuildStash(guildId) {
+        return this.fetchWithCache(`/guild/${guildId}/stash`, `guild_stash_${guildId}`, 5 * 60 * 1000, true);
+    },
+
+    async getAccountMaterials() {
+        return this.fetchWithCache('/account/materials', 'account_materials', 5 * 60 * 1000, true);
+    },
+
+    async getMaterialsCategories() {
+        const ids = [5, 6, 29, 30, 37, 38, 46, 49, 50];
+        return this.fetchWithCache(`/materials?ids=${ids.join(',')}&lang=fr`, 'materials_categories', 24 * 60 * 60 * 1000, false);
+    },
+
+    async getGuildInfo(guildId) {
+        return this.fetchWithCache(`/guild/${guildId}`, `guild_info_${guildId}`, 24 * 60 * 60 * 1000, false);
+    },
+
     async getCharacters() {
         // Step 1: Get character names list
         const names = await this.fetchWithCache('/characters', 'char_names', 5 * 60 * 1000, true);
