@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TyriaCompanion - Le portail du Commandant</title>
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <!-- Google Fonts: Inter & Outfit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- CSS Stylesheet -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="brand">
+                <div class="brand-logo">
+                    <i class="fa-solid fa-dragon logo-icon"></i>
+                </div>
+                <div class="brand-info">
+                    <h1>TyriaCompanion</h1>
+                    <span>V1.0 - TyriaBot Edition</span>
+                </div>
+            </div>
+            
+            <nav class="nav-menu">
+                <a href="#dashboard" class="nav-item active" data-tab="dashboard">
+                    <i class="fa-solid fa-chart-pie"></i>
+                    <span>Tableau de Bord</span>
+                </a>
+                <a href="#legendaries" class="nav-item" data-tab="legendaries">
+                    <i class="fa-solid fa-shield-halved"></i>
+                    <span>Progression Légendaire</span>
+                </a>
+                <a href="#timers" class="nav-item" data-tab="timers">
+                    <i class="fa-solid fa-clock"></i>
+                    <span>Minuteurs Méta</span>
+                </a>
+                <a href="#vault" class="nav-item" data-tab="vault">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    <span>Chambre du Sorcier</span>
+                </a>
+                <a href="#tradingpost" class="nav-item" data-tab="tradingpost">
+                    <i class="fa-solid fa-coins"></i>
+                    <span>Optimisation Comptoir</span>
+                </a>
+                <a href="#inventories" class="nav-item" data-tab="inventories">
+                    <i class="fa-solid fa-boxes-stacked"></i>
+                    <span>Sacs des Personnages</span>
+                </a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <button id="btn-api-config" class="btn btn-secondary btn-block">
+                    <i class="fa-solid fa-key"></i>
+                    <span>Clé API</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <header class="top-bar">
+                <div class="page-title">
+                    <h2 id="current-tab-title">Tableau de Bord</h2>
+                </div>
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <button id="btn-global-reload" class="btn btn-secondary btn-sm" style="display: none; padding: 6px 12px; font-size: 11px;">
+                        <i class="fa-solid fa-arrows-rotate"></i> Synchroniser
+                    </button>
+                    <div class="account-status" id="account-status-indicator">
+                        <span class="status-dot offline"></span>
+                        <span class="status-text">Hors ligne (Clé API requise)</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- App Views -->
+            <div class="content-body">
+                <!-- Dashboard Section -->
+                <section id="dashboard-view" class="view-section active"></section>
+
+                <!-- Legendary Section -->
+                <section id="legendaries-view" class="view-section"></section>
+
+                <!-- Timers Section -->
+                <section id="timers-view" class="view-section"></section>
+
+                <!-- Wizard's Vault Section -->
+                <section id="vault-view" class="view-section"></section>
+
+                <!-- Trading Post Section -->
+                <section id="tradingpost-view" class="view-section"></section>
+
+                <!-- Character Inventories Section -->
+                <section id="inventories-view" class="view-section"></section>
+            </div>
+        </main>
+    </div>
+
+    <!-- API Key Configuration Modal -->
+    <div id="api-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Configuration de la Clé API</h3>
+                <button class="close-modal" id="btn-close-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Pour charger vos personnages, votre banque et le suivi de vos succès, saisissez une clé API Guild Wars 2.</p>
+                <div class="api-instructions">
+                    <h4>Comment obtenir une clé API ?</h4>
+                    <ol>
+                        <li>Connectez-vous sur <a href="https://account.arena.net/" target="_blank" rel="noopener">account.arena.net</a>.</li>
+                        <li>Allez dans l'onglet <strong>Applications</strong> puis <strong>Créer une clé</strong>.</li>
+                        <li>Cochez les permissions : <code>account</code>, <code>characters</code>, <code>inventories</code>, <code>wallet</code>, <code>progression</code> et <code>unlocks</code>.</li>
+                        <li>Copiez la clé générée ci-dessous.</li>
+                    </ol>
+                </div>
+                <div class="form-group">
+                    <label for="api-key-input">Votre clé API :</label>
+                    <input type="text" id="api-key-input" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX..." autocomplete="off">
+                    <span class="error-message" id="api-error-msg"></span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="btn-save-api" class="btn btn-primary">Enregistrer</button>
+                <button id="btn-delete-api" class="btn btn-danger">Supprimer la clé</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main JS Application script -->
+    <script type="module" src="js/app.js"></script>
+</body>
+</html>
