@@ -257,7 +257,7 @@ export const Legendaries = {
 
             // Fetch details for all item requirements to get their official fresh icons
             const itemIds = [
-                100930, 19976, 19721, // Amalgamated, Clover, Ecto
+                100930, 19675, 19721, // Amalgamated, Clover, Ecto
                 19925, 81840, 19678, // Obsidian Shard, Dark Energy Cube, Gift of Battle
                 46746, 46745,         // Vision Crystal, Lesser Vision Crystal
                 24295, 24298, 24305, 24277, // T6 materials (Blood, Venom, Totem, Dust)
@@ -267,7 +267,7 @@ export const Legendaries = {
 
             // Item counts checked across Bank + Materials + Characters bags
             const amalgamatedRiftEssenceCount = this.countTotalItem(100930, bank, materials, characters);
-            const cloverCount = this.countTotalItem(19976, bank, materials, characters);
+            const cloverCount = this.countTotalItem(19675, bank, materials, characters);
             const ectoCount = this.countTotalItem(19721, bank, materials, characters);
             const obsidianCount = this.countTotalItem(19925, bank, materials, characters);
             const darkEnergyCount = this.countTotalItem(81840, bank, materials, characters);
@@ -315,7 +315,7 @@ export const Legendaries = {
 
             // Get dynamic icons
             const amalgamatedIcon = itemDetails[100930]?.icon || 'https://render.guildwars2.com/file/F4A4C84E9D0A86E0FECA94F7CEEE57E9EA369D3B/3110292.png';
-            const cloverIcon = itemDetails[19976]?.icon || 'https://render.guildwars2.com/file/987F869CB694709FA508381D0DEEF1F232B66649/455986.png';
+            const cloverIcon = itemDetails[19675]?.icon || 'https://render.guildwars2.com/file/FE9DC3E10D4B2AE16DADEB07CF28A058570E2EF3/455855.png';
             const ectoIcon = itemDetails[19721]?.icon || 'https://render.guildwars2.com/file/A12C596F1D3528A614660FB2D66133F3987CE5EB/222340.png';
             const obsidianIcon = itemDetails[19925]?.icon || 'https://render.guildwars2.com/file/4C221CD6B96D69FDF8C053E778E2CD37C4F22C5A/63345.png';
             const darkEnergyIcon = itemDetails[81840]?.icon || 'https://render.guildwars2.com/file/E52F86B1DF85CAE0FE59C8614E2B16B4D5D726D6/1454593.png';
@@ -488,9 +488,9 @@ export const Legendaries = {
                                 </div>
                             </div>
                             <!-- Mystic Clovers -->
-                            <div class="mat-item" data-item-id="19976">
+                            <div class="mat-item" data-item-id="19675">
                                 <div class="mat-details">
-                                    <img src="${cloverIcon}" alt="Trèfles mystiques" title="${getTooltipAttr(itemDetails[19976])}" onerror="this.onerror=null;this.src='https://render.guildwars2.com/file/987F869CB694709FA508381D0DEEF1F232B66649/455986.png';">
+                                    <img src="${cloverIcon}" alt="Trèfles mystiques" title="${getTooltipAttr(itemDetails[19675])}" onerror="this.onerror=null;this.src='https://render.guildwars2.com/file/FE9DC3E10D4B2AE16DADEB07CF28A058570E2EF3/455855.png';">
                                     <span class="mat-name">Trèfles mystiques</span>
                                 </div>
                                 <div class="mat-count-box">
@@ -921,7 +921,7 @@ export const Legendaries = {
             const itemIds = [
                 104857, 104690, 104777, 96137, 102367, 104704, // Legendary, Precursor, Binding, Tribute, Salmon, Askur
                 104962, 104763, 104699, 104846, 19631, 75299, 104791, 104872, 104965, 104932, 104839, 104717, 104844,
-                103351, 79418, 100930, 19976, 104229, 105004, 104282, 104855, 102569, 103316
+                103351, 79418, 100930, 19675, 104229, 105004, 104282, 104855, 102569, 103316
             ];
             const itemDetails = await GW2Api.getItemDetails(itemIds);
 
@@ -966,7 +966,7 @@ export const Legendaries = {
             const mursaatRunestoneCount = count(103351);
             const mysticRunestoneCount = count(79418);
             const amalgamatedRiftEssenceCount = count(100930);
-            const mysticCloverCount = count(19976);
+            const mysticCloverCount = count(19675);
             const liquidObsidianCount = count(104229);
             const mistsGateResidueCount = count(105004);
             const shardMistburnedCount = count(104282);
@@ -1139,7 +1139,7 @@ export const Legendaries = {
                                 <i class="fa-solid fa-bowl-food"></i> Artisanat & Cuisine (Le Festin)
                             </h3>
                             <div class="material-list" style="margin-top: 0;">
-                                ${renderMatRow(19976, "Trèfles mystiques", currentClover, 68)}
+                                ${renderMatRow(19675, "Trèfles mystiques", currentClover, 68)}
                                 ${renderMatRow(104844, "Fruit de l'ombre", currentShadowFruit, 20)}
                                 ${renderMatRow(100930, "Essence de faille amalgamée", currentAmalgamated, 27)}
                                 ${renderMatRow(79418, "Pierre de rune mystique", currentMysticRunestone, 250)}
@@ -1386,7 +1386,7 @@ export const Legendaries = {
         };
 
         const amalgamatedCount = this.countTotalItem(100930, bank, materials, characters);
-        const cloverCount = this.countTotalItem(19976, bank, materials, characters);
+        const cloverCount = this.countTotalItem(19675, bank, materials, characters);
         const ectoCount = this.countTotalItem(19721, bank, materials, characters);
         const obsidianCount = this.countTotalItem(19925, bank, materials, characters);
         const darkEnergyCount = this.countTotalItem(81840, bank, materials, characters);
