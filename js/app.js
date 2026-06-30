@@ -5,12 +5,14 @@ import { Timers } from './components/timers.js';
 import { Vault } from './components/vault.js';
 import { TradingPost } from './components/tradingpost.js';
 import { Inventories } from './components/inventories.js';
+import { Builds } from './components/builds.js';
 
 // Application Orchestrator
 const App = {
     currentTab: 'dashboard',
     views: {
         dashboard: { title: 'Tableau de Bord', component: Dashboard, elementId: 'dashboard-view' },
+        builds: { title: 'Équipements & Builds', component: Builds, elementId: 'builds-view' },
         legendaries: { title: 'Progression Légendaire', component: Legendaries, elementId: 'legendaries-view' },
         timers: { title: 'Minuteurs des Méta-Événements', component: Timers, elementId: 'timers-view' },
         vault: { title: 'Chambre du Sorcier', component: Vault, elementId: 'vault-view' },
@@ -229,8 +231,8 @@ const App = {
         // Render component
         const container = document.getElementById(this.views[tab].elementId);
         
-        // Check API key requirement
-        if (tab !== 'timers' && !GW2Api.hasKey()) {
+        // Check API key requirement (builds and timers don't strictly require a user API key)
+        if (tab !== 'timers' && tab !== 'builds' && !GW2Api.hasKey()) {
             container.innerHTML = `
                 <div class="card" style="text-align: center; padding: 40px;">
                     <i class="fa-solid fa-key" style="font-size: 40px; color: var(--text-muted); margin-bottom: 20px;"></i>
@@ -247,11 +249,11 @@ const App = {
             return;
         }
 
-        // Render actual component (only render if empty, if it contains the API key prompt, or if it's the timers view)
+        // Render actual component (only render if empty, if it contains the API key prompt, or if it's a dynamic view)
         const isRendered = container.innerHTML.trim().length > 0;
         const hasApiKeyPrompt = container.querySelector('#btn-prompt-api');
         
-        if (tab === 'timers' || tab === 'vault' || tab === 'dashboard' || !isRendered || hasApiKeyPrompt) {
+        if (tab === 'timers' || tab === 'builds' || tab === 'vault' || tab === 'dashboard' || !isRendered || hasApiKeyPrompt) {
             await this.views[tab].component.render(container);
         }
     },

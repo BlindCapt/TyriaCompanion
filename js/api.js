@@ -168,6 +168,186 @@ export const GW2Api = {
         }
     },
 
+    // --- Build Manager Helper Endpoints ---
+
+    async getProfessionDetails(professionIdOrName) {
+        const professionsMap = {
+            1: 'Guardian',
+            2: 'Warrior',
+            3: 'Engineer',
+            4: 'Ranger',
+            5: 'Thief',
+            6: 'Elementalist',
+            7: 'Mesmer',
+            8: 'Necromancer',
+            9: 'Revenant'
+        };
+        
+        let profName = professionIdOrName;
+        if (typeof professionIdOrName === 'number' || !isNaN(professionIdOrName)) {
+            profName = professionsMap[Number(professionIdOrName)];
+        }
+        
+        if (!profName) {
+            throw new Error(`Profession inconnue: ${professionIdOrName}`);
+        }
+        
+        // Capitalize name
+        profName = profName.charAt(0).toUpperCase() + profName.slice(1).toLowerCase();
+        
+        return this.fetchWithCache(`/professions/${profName}?v=latest&lang=fr`, `prof_details_${profName}`, 7 * 24 * 60 * 60 * 1000, false);
+    },
+
+    async getSpecializationDetails(ids) {
+        return this.getSpecializationsDetails(ids);
+    },
+
+    async getTraitDetails(ids) {
+        return this.getTraitsDetails(ids);
+    },
+
+    async getSkillDetails(ids) {
+        return this.getSkillsDetails(ids);
+    },
+
+    async getLegendDetails() {
+        return this.fetchWithCache('/legends?ids=all&lang=fr', 'legends_all', 30 * 24 * 60 * 60 * 1000, false);
+    },
+
+    async getSpecializationsDetails(ids) {
+        if (!ids || ids.length === 0) return {};
+        const uniqueIds = [...new Set(ids.filter(id => id !== null && id !== undefined))];
+        const results = {};
+        const missingIds = [];
+        
+        uniqueIds.forEach(id => {
+            const cached = localStorage.getItem(PERMANENT_CACHE_PREFIX + 'spec_' + id);
+            if (cached) {
+                try {
+                    results[id] = JSON.parse(cached);
+                } catch (e) {
+                    missingIds.push(id);
+                }
+            } else {
+                missingIds.push(id);
+            }
+        });
+        
+        if (missingIds.length === 0) return results;
+        
+        try {
+            const url = `${BASE_URL}/specializations?ids=${missingIds.join(',')}&lang=fr`;
+            const response = await fetch(url);
+            if (response.ok) {
+                const data = await response.json();
+                data.forEach(spec => {
+                    results[spec.id] = spec;
+                    try {
+                        localStorage.setItem(PERMANENT_CACHE_PREFIX + 'spec_' + spec.id, JSON.stringify(spec));
+                    } catch (e) {
+                        // local storage full, ignore
+                    }
+                });
+            }
+        } catch (e) {
+            console.error("Error fetching specializations details", e);
+        }
+        
+        return results;
+    },
+
+    async getTraitsDetails(ids) {
+        if (!ids || ids.length === 0) return {};
+        const uniqueIds = [...new Set(ids.filter(id => id !== null && id !== undefined))];
+        const results = {};
+        const missingIds = [];
+        
+        uniqueIds.forEach(id => {
+            const cached = localStorage.getItem(PERMANENT_CACHE_PREFIX + 'trait_' + id);
+            if (cached) {
+                try {
+                    results[id] = JSON.parse(cached);
+                } catch (e) {
+                    missingIds.push(id);
+                }
+            } else {
+                missingIds.push(id);
+            }
+        });
+        
+        if (missingIds.length === 0) return results;
+        
+        const chunkSize = 100;
+        for (let i = 0; i < missingIds.length; i += chunkSize) {
+            const chunk = missingIds.slice(i, i + chunkSize);
+            try {
+                const url = `${BASE_URL}/traits?ids=${chunk.join(',')}&lang=fr`;
+                const response = await fetch(url);
+                if (response.ok) {
+                    const traitsData = await response.json();
+                    traitsData.forEach(trait => {
+                        results[trait.id] = trait;
+                        try {
+                            localStorage.setItem(PERMANENT_CACHE_PREFIX + 'trait_' + trait.id, JSON.stringify(trait));
+                        } catch (e) {
+                            // local storage full, ignore
+                        }
+                    });
+                }
+            } catch (e) {
+                console.error("Error fetching traits details chunk", e);
+            }
+        }
+        
+        return results;
+    },
+
+    async getSkillsDetails(ids) {
+        if (!ids || ids.length === 0) return {};
+        const uniqueIds = [...new Set(ids.filter(id => id !== null && id !== undefined))];
+        const results = {};
+        const missingIds = [];
+        
+        uniqueIds.forEach(id => {
+            const cached = localStorage.getItem(PERMANENT_CACHE_PREFIX + 'skill_' + id);
+            if (cached) {
+                try {
+                    results[id] = JSON.parse(cached);
+                } catch (e) {
+                    missingIds.push(id);
+                }
+            } else {
+                missingIds.push(id);
+            }
+        });
+        
+        if (missingIds.length === 0) return results;
+        
+        const chunkSize = 100;
+        for (let i = 0; i < missingIds.length; i += chunkSize) {
+            const chunk = missingIds.slice(i, i + chunkSize);
+            try {
+                const url = `${BASE_URL}/skills?ids=${chunk.join(',')}&lang=fr`;
+                const response = await fetch(url);
+                if (response.ok) {
+                    const skillsData = await response.json();
+                    skillsData.forEach(skill => {
+                        results[skill.id] = skill;
+                        try {
+                            localStorage.setItem(PERMANENT_CACHE_PREFIX + 'skill_' + skill.id, JSON.stringify(skill));
+                        } catch (e) {
+                            // local storage full, ignore
+                        }
+                    });
+                }
+            } catch (e) {
+                console.error("Error fetching skills details chunk", e);
+            }
+        }
+        
+        return results;
+    },
+
     // Validate key and permissions
     async validateApiKey(key) {
         const url = `${BASE_URL}/tokeninfo?access_token=${key}`;
@@ -175,7 +355,7 @@ export const GW2Api = {
         if (!response.ok) throw new Error("Clé API incorrecte.");
         
         const info = await response.json();
-        const requiredPermissions = ['account', 'progression', 'wallet', 'inventories', 'characters'];
+        const requiredPermissions = ['account', 'progression', 'wallet', 'inventories', 'characters', 'builds'];
         const missing = requiredPermissions.filter(p => !info.permissions.includes(p));
         
         if (missing.length > 0) {
@@ -226,8 +406,8 @@ export const GW2Api = {
         for (let i = 0; i < names.length; i += chunkSize) {
             const chunk = names.slice(i, i + chunkSize);
             const encodedNames = chunk.map(encodeURIComponent).join(',');
-            const endpoint = `/characters?ids=${encodedNames}`;
-            const details = await this.fetchWithCache(endpoint, `chars_chunk_${i}`, 5 * 60 * 1000, true);
+            const endpoint = `/characters?ids=${encodedNames}&v=latest`;
+            const details = await this.fetchWithCache(endpoint, `chars_chunk_v2_${i}`, 5 * 60 * 1000, true);
             if (Array.isArray(details)) {
                 results.push(...details);
             } else {
